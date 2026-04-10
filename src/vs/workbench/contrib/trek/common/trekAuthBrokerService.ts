@@ -48,14 +48,23 @@ const TREK_PROVIDER_CAPABILITIES: readonly ITrekProviderCapability[] = [
 export class TrekAuthBrokerService implements ITrekAuthBrokerService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly sessions: ITrekProviderSession[] = [];
+	private readonly sessions = new Map<TrekProviderId, ITrekProviderSession>();
 
 	listCapabilities(): readonly ITrekProviderCapability[] {
 		return TREK_PROVIDER_CAPABILITIES;
 	}
 
 	listSessions(): readonly ITrekProviderSession[] {
-		return this.sessions;
+		return [...this.sessions.values()];
+	}
+
+	listSupportedMethods(providerId: TrekProviderId): readonly TrekAuthMethod[] {
+		const capability = TREK_PROVIDER_CAPABILITIES.find(item => item.providerId === providerId);
+		if (!capability) {
+			return [];
+		}
+
+		return capability.methods;
 	}
 
 	isMethodSupported(providerId: TrekProviderId, method: TrekAuthMethod): boolean {
@@ -65,5 +74,43 @@ export class TrekAuthBrokerService implements ITrekAuthBrokerService {
 		}
 
 		return capability.methods.includes(method);
+	}
+
+	connect(providerId: TrekProviderId, method: TrekAuthMethod, accountLabel?: string): ITrekProviderSession {
+		if (!this.isMethodSupported(providerId, method)) {
+			throw new Error(`Auth method ${method} is not supported for provider ${providerId}.`);
+		}
+
+		const now = Date.now();
+		const session: ITrekProviderSession = {
+			providerId,
+			method,
+			connected: true,
+			accountLabel,
+			updatedAt: now,
+			entitlementLabel: this.computeEntitlementLabel(providerId)
+		};
+
+		this.sessions.set(providerId, session);
+		return session;
+	}
+
+	disconnect(providerId: TrekProviderId): void {
+		this.sessions.delete(providerId);
+	}
+
+	private computeEntitlementLabel(providerId: TrekProviderId): string {
+		switch (providerId) {
+			case 'github-copilot':
+				return 'subscription required';
+			case 'openai-chatgpt':
+				return 'plan-dependent';
+			case 'google-gemini':
+				return 'cloud project entitlement';
+			case 'anthropic-claude':
+				return 'api account entitlement';
+			default:
+				return 'unknown';
+		}
 	}
 }

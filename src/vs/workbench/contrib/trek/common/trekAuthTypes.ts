@@ -43,5 +43,8 @@ export interface ITrekAuthBroker {
 
 	listCapabilities(): readonly ITrekProviderCapability[];
 	listSessions(): readonly ITrekProviderSession[];
+	listSupportedMethods(providerId: TrekProviderId): readonly TrekAuthMethod[];
 	isMethodSupported(providerId: TrekProviderId, method: TrekAuthMethod): boolean;
+	connect(providerId: TrekProviderId, method: TrekAuthMethod, accountLabel?: string): ITrekProviderSession;
+	disconnect(providerId: TrekProviderId): void;
 }
