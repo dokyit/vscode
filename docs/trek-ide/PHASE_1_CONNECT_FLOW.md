@@ -13,16 +13,16 @@ This phase introduces command-level scaffolding for provider connection flows.
 
 ## Current behavior
 
-- Sessions are in-memory only (no persistence yet).
-- Connection is mock-mode (`accountLabel: mock-account`) to validate UX/control flow.
+- Sessions are profile-scoped and persisted to storage key `trek.auth.sessions.v1`.
+- Connection remains mock-mode (`accountLabel: mock-account`) to validate UX/control flow before provider adapters are wired.
 - Unsupported providers are blocked with explicit reason.
+- Added disconnect command and storage refresh path.
 
 ## Next implementation
 
-1. Persist sessions per-profile using storage service.
-2. Add provider-specific auth adapters:
+1. Add provider-specific auth adapters:
    - Copilot device flow
    - OpenAI web flow
    - Gemini cloud IAM
-3. Add secure token storage bridge.
-4. Replace mock connect with real token + entitlement checks.
+2. Add secure token storage bridge.
+3. Replace mock connect with real token + entitlement checks.

@@ -9,10 +9,48 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITrekAuthBrokerService, TrekAuthBrokerService } from '../common/trekAuthBrokerService.js';
-import { TrekProviderId } from '../common/trekAuthTypes.js';
+import { TrekAuthMethod, TrekProviderId } from '../common/trekAuthTypes.js';
 
 registerSingleton(ITrekAuthBrokerService, TrekAuthBrokerService, InstantiationType.Delayed);
+
+const TREK_SESSION_STORAGE_KEY = 'trek.auth.sessions.v1';
+
+function persistSessions(accessor: ServicesAccessor): void {
+	const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
+	const storageService = accessor.get(IStorageService);
+
+	storageService.store(
+		TREK_SESSION_STORAGE_KEY,
+		JSON.stringify(trekAuthBrokerService.listSessions()),
+		StorageScope.PROFILE,
+		StorageTarget.MACHINE
+	);
+}
+
+function restoreSessions(accessor: ServicesAccessor): void {
+	const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
+	const storageService = accessor.get(IStorageService);
+	const raw = storageService.get(TREK_SESSION_STORAGE_KEY, StorageScope.PROFILE, '[]');
+
+	let sessions: Array<{ providerId: TrekProviderId; method: string; accountLabel?: string }> = [];
+	try {
+		sessions = JSON.parse(raw);
+	} catch {
+		return;
+	}
+
+	for (const session of sessions) {
+		if (typeof session.providerId !== 'string' || typeof session.method !== 'string') {
+			continue;
+		}
+		if (!trekAuthBrokerService.isMethodSupported(session.providerId, session.method as TrekAuthMethod)) {
+			continue;
+		}
+		trekAuthBrokerService.connect(session.providerId, session.method as TrekAuthMethod, session.accountLabel);
+	}
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -25,6 +63,8 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		restoreSessions(accessor);
+
 		const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
 		const quickInputService = accessor.get(IQuickInputService);
 
@@ -102,6 +142,7 @@ registerAction2(class extends Action2 {
 				}
 
 				const session = trekAuthBrokerService.connect(providerId, selectedMethod.label as typeof methods[number], 'mock-account');
+				persistSessions(accessor);
 				void quickInputService.pick([
 					{
 						label: localize2('trek.auth.connected', 'Connected'),
@@ -127,6 +168,8 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		restoreSessions(accessor);
+
 		const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessions = trekAuthBrokerService.listSessions();
@@ -148,6 +191,55 @@ registerAction2(class extends Action2 {
 			detail: `${session.accountLabel ?? 'account'} | ${session.entitlementLabel ?? 'entitlement unknown'}`
 		})), {
 			title: localize2('trek.auth.sessions.title', 'Trek Provider Sessions')
+		});
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'trek.auth.disconnectProvider',
+			title: localize2('trek.auth.disconnectProvider', 'Trek: Disconnect Provider'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		restoreSessions(accessor);
+
+		const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessions = trekAuthBrokerService.listSessions();
+
+		if (sessions.length === 0) {
+			void quickInputService.pick([
+				{ label: localize2('trek.auth.disconnect.empty', 'No sessions to disconnect') }
+			], {
+				title: localize2('trek.auth.disconnect.title', 'Disconnect Trek Provider')
+			});
+			return;
+		}
+
+		void quickInputService.pick(sessions.map(session => ({
+			label: session.providerId,
+			description: session.method,
+			detail: session.accountLabel
+		})), {
+			title: localize2('trek.auth.disconnect.pick', 'Select Provider Session to Disconnect')
+		}).then(selected => {
+			if (!selected) {
+				return;
+			}
+
+			trekAuthBrokerService.disconnect(selected.label as TrekProviderId);
+			persistSessions(accessor);
+
+			void quickInputService.pick([
+				{ label: localize2('trek.auth.disconnect.done', 'Disconnected'), description: selected.label }
+			], {
+				title: localize2('trek.auth.disconnect.done.title', 'Trek Provider Session Removed')
+			});
 		});
 	}
 });
