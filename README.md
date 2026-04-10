@@ -1,3 +1,17 @@
+# Trek IDE (forked from VS Code "Code - OSS")
+
+This repository is the Trek IDE fork of VS Code.
+
+## Trek IDE
+
+Trek IDE is an AI-native IDE fork based on Code - OSS, focused on provider-flexible model auth (including account-based sign-in where officially supported) and agentic workflows.
+
+## Upstream Base
+
+Trek IDE tracks the upstream Microsoft VS Code (`Code - OSS`) codebase and rebases regularly.
+
+---
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
