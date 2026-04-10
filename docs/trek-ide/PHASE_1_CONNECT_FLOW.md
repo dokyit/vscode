@@ -14,15 +14,14 @@ This phase introduces command-level scaffolding for provider connection flows.
 ## Current behavior
 
 - Sessions are profile-scoped and persisted to storage key `trek.auth.sessions.v1`.
-- Connection remains mock-mode (`accountLabel: mock-account`) to validate UX/control flow before provider adapters are wired.
+- Connection now routes through provider adapter registry.
+- Copilot device-flow adapter scaffold is wired as the first provider adapter.
 - Unsupported providers are blocked with explicit reason.
 - Added disconnect command and storage refresh path.
 
 ## Next implementation
 
-1. Add provider-specific auth adapters:
-   - Copilot device flow
-   - OpenAI web flow
-   - Gemini cloud IAM
-2. Add secure token storage bridge.
-3. Replace mock connect with real token + entitlement checks.
+1. Add real OAuth/device handshake in Copilot adapter (replace scaffold prompt).
+2. Add OpenAI and Gemini adapter implementations.
+3. Add secure token storage bridge.
+4. Add entitlement verification endpoints per provider.

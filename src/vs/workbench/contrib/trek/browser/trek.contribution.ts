@@ -12,10 +12,23 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITrekAuthBrokerService, TrekAuthBrokerService } from '../common/trekAuthBrokerService.js';
 import { TrekAuthMethod, TrekProviderId } from '../common/trekAuthTypes.js';
+import { getTrekAuthAdapter } from './trekAuthAdapterRegistry.js';
+import { registerCopilotDeviceFlowAdapter } from './adapters/copilotDeviceFlowAdapter.js';
 
 registerSingleton(ITrekAuthBrokerService, TrekAuthBrokerService, InstantiationType.Delayed);
 
 const TREK_SESSION_STORAGE_KEY = 'trek.auth.sessions.v1';
+let adaptersRegistered = false;
+
+function ensureAdaptersRegistered(accessor: ServicesAccessor): void {
+	if (adaptersRegistered) {
+		return;
+	}
+
+	const quickInputService = accessor.get(IQuickInputService);
+	registerCopilotDeviceFlowAdapter(quickInputService);
+	adaptersRegistered = true;
+}
 
 function persistSessions(accessor: ServicesAccessor): void {
 	const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
@@ -63,6 +76,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		ensureAdaptersRegistered(accessor);
 		restoreSessions(accessor);
 
 		const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
@@ -95,6 +109,8 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		ensureAdaptersRegistered(accessor);
+
 		const trekAuthBrokerService = accessor.get(ITrekAuthBrokerService);
 		const quickInputService = accessor.get(IQuickInputService);
 
@@ -136,18 +152,35 @@ registerAction2(class extends Action2 {
 
 			void quickInputService.pick(methodPicks, {
 				title: localize2('trek.auth.methods.pick', 'Select Auth Method')
-			}).then(selectedMethod => {
+			}).then(async selectedMethod => {
 				if (!selectedMethod) {
 					return;
 				}
 
-				const session = trekAuthBrokerService.connect(providerId, selectedMethod.label as typeof methods[number], 'mock-account');
+				const selectedAuthMethod = selectedMethod.label as TrekAuthMethod;
+				const adapter = getTrekAuthAdapter(providerId);
+				if (!adapter || !adapter.methods.includes(selectedAuthMethod)) {
+					void quickInputService.pick([
+						{
+							label: localize2('trek.auth.adapter.missing', 'No adapter available for selected provider/method'),
+							description: `${providerId} via ${selectedAuthMethod}`,
+							detail: localize2('trek.auth.adapter.missing.detail', 'Provider adapter not implemented yet in Trek IDE.')
+						}
+					], {
+						title: localize2('trek.auth.adapter.missing.title', 'Trek Adapter Missing')
+					});
+					return;
+				}
+
+				const result = await adapter.connect({ providerId, method: selectedAuthMethod });
+				const session = trekAuthBrokerService.connect(providerId, selectedAuthMethod, result.accountLabel);
 				persistSessions(accessor);
+
 				void quickInputService.pick([
 					{
 						label: localize2('trek.auth.connected', 'Connected'),
 						description: `${session.providerId} via ${session.method}`,
-						detail: session.entitlementLabel
+						detail: result.entitlementLabel ?? session.entitlementLabel
 					}
 				], {
 					title: localize2('trek.auth.connected.title', 'Trek Provider Session Created')
